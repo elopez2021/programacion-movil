@@ -294,7 +294,7 @@ private fun ProfileContent(
                         color = MaterialTheme.colorScheme.primary
                     )
                     Text(
-                        text = "@${user.username} • ID: #${user.id}",
+                        text = "@${user.username}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
