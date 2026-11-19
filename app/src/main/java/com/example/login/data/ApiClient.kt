@@ -16,7 +16,7 @@ object ApiClient {
      * Con "adb reverse tcp:80 tcp:80" conectado por USB, el teléfono usa "http://localhost/flashcards_api/".
      * Si se usa el emulador de Android Studio, se puede usar "http://10.0.2.2/flashcards_api/".
      */
-    var BASE_URL = "http://localhost/flashcards_api/"
+    var BASE_URL = "http://localhost:8080/flashcards_api/"
 
     /**
      * Realiza una petición POST enviando y recibiendo JSON
