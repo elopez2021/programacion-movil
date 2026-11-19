@@ -51,7 +51,10 @@ data class AppStrings(
     val confirmNewPassword: String,
     val changePassword: String,
     val errCurrentPasswordWrong: String,
-    val successPasswordChanged: String
+    val successPasswordChanged: String,
+    // Google Sign-In
+    val orContinueWith: String,
+    val continueWithGoogle: String
 ) {
     companion object {
         fun get(language: Language): AppStrings {
@@ -102,7 +105,9 @@ data class AppStrings(
                     confirmNewPassword = "Confirmar nueva contraseña",
                     changePassword = "Actualizar contraseña",
                     errCurrentPasswordWrong = "La contraseña actual es incorrecta",
-                    successPasswordChanged = "¡Contraseña cambiada exitosamente!"
+                    successPasswordChanged = "¡Contraseña cambiada exitosamente!",
+                    orContinueWith = "o continuar con",
+                    continueWithGoogle = "Continuar con Google"
                 )
                 Language.EN -> AppStrings(
                     welcomeBack = "Welcome Back",
@@ -150,7 +155,9 @@ data class AppStrings(
                     confirmNewPassword = "Confirm New Password",
                     changePassword = "Update Password",
                     errCurrentPasswordWrong = "Current password is incorrect",
-                    successPasswordChanged = "Password changed successfully!"
+                    successPasswordChanged = "Password changed successfully!",
+                    orContinueWith = "or continue with",
+                    continueWithGoogle = "Continue with Google"
                 )
             }
         }

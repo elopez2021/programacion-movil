@@ -1,6 +1,8 @@
 package com.example.login.ui
 
 import android.util.Patterns
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -20,7 +22,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -28,8 +33,12 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.example.login.R
 import com.example.login.data.ApiClient
 import com.example.login.data.User
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.ApiException
 import kotlinx.coroutines.launch
 
 enum class AuthMode {
@@ -45,6 +54,7 @@ fun LoginScreen(
     onLoginSuccess: (User) -> Unit,
     apiClient: ApiClient = ApiClient
 ) {
+    val context = LocalContext.current
     val strings = remember(currentLanguage) { AppStrings.get(currentLanguage) }
     val coroutineScope = rememberCoroutineScope()
 
@@ -64,6 +74,55 @@ fun LoginScreen(
     var successMessage by remember { mutableStateOf<String?>(null) }
 
     val focusManager = LocalFocusManager.current
+
+    // Configuración de Google Sign-In
+    val gso = remember {
+        GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestEmail()
+            .requestProfile()
+            .build()
+    }
+
+    val googleSignInClient = remember {
+        GoogleSignIn.getClient(context, gso)
+    }
+
+    val googleLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+        try {
+            val account = task.getResult(ApiException::class.java)
+            val googleEmail = account.email
+            val googleName = account.displayName ?: account.givenName ?: "Usuario Google"
+
+            if (!googleEmail.isNullOrBlank()) {
+                coroutineScope.launch {
+                    isLoading = true
+                    errorMessage = null
+                    val apiResult = apiClient.googleLogin(googleEmail, googleName)
+                    isLoading = false
+                    if (apiResult.isSuccess) {
+                        val loggedUser = apiResult.getOrNull()
+                        if (loggedUser != null) {
+                            onLoginSuccess(loggedUser)
+                        }
+                    } else {
+                        errorMessage = apiResult.exceptionOrNull()?.message ?: "Error al conectar cuenta con el servidor"
+                    }
+                }
+            } else {
+                errorMessage = "No se pudo obtener el correo de la cuenta de Google seleccionada"
+            }
+        } catch (e: ApiException) {
+            // Código 12501 significa que el usuario cerró el diálogo sin seleccionar
+            if (e.statusCode != 12501) {
+                errorMessage = "Google Sign-In: Error código ${e.statusCode}"
+            }
+        } catch (e: Exception) {
+            errorMessage = e.localizedMessage ?: "Error al iniciar con Google"
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -567,6 +626,55 @@ fun LoginScreen(
                                 AuthMode.LOGIN -> strings.signIn
                             },
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                        )
+                    }
+                }
+
+                // Google Sign-In button (only shown on Login and Register modes)
+                if (authMode != AuthMode.FORGOT_PASSWORD) {
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        HorizontalDivider(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant)
+                        Text(
+                            text = "  ${strings.orContinueWith}  ",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        HorizontalDivider(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant)
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    OutlinedButton(
+                        onClick = {
+                            errorMessage = null
+                            successMessage = null
+                            // Desconectar sesión previa para que siempre aparezca el selector de cuentas
+                            googleSignInClient.signOut().addOnCompleteListener {
+                                val signInIntent = googleSignInClient.signInIntent
+                                googleLauncher.launch(signInIntent)
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp),
+                        enabled = !isLoading,
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_google),
+                            contentDescription = "Google",
+                            tint = Color.Unspecified,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = strings.continueWithGoogle,
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold)
                         )
                     }
                 }

@@ -78,6 +78,27 @@ object ApiClient {
     }
 
     /**
+     * Iniciar sesión con Google (registra o inicia sesión con la cuenta de Google)
+     */
+    suspend fun googleLogin(email: String, name: String): Result<User> {
+        val body = JSONObject().apply {
+            put("email", email)
+            put("name", name)
+        }
+
+        val result = postJson("google_login.php", body)
+        return result.mapCatching { json ->
+            val userObj = json.getJSONObject("user")
+            User(
+                id = userObj.getLong("id"),
+                username = userObj.getString("username"),
+                email = userObj.getString("email"),
+                name = userObj.getString("name")
+            )
+        }
+    }
+
+    /**
      * Iniciar sesión contra flashcards_api/login.php
      */
     suspend fun login(identifier: String, password: String): Result<User> {
