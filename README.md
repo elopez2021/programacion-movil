@@ -6,10 +6,15 @@ Una aplicación móvil Android nativa, simple y moderna, desarrollada con **Kotl
 
 ## ✨ Funcionalidades Principales
 
-1. **Autenticación Completa con API REST (MySQL / phpMyAdmin)**:
-   - **Iniciar Sesión**: Autenticación segura mediante usuario o correo electrónico y contraseña (con hash SHA-256).
-   - **Registrarse**: Creación de nuevas cuentas (Nombre completo, correo, usuario y contraseña) con validación de campos y duplicados.
-   - **Recuperar Clave**: Pantalla limpia para ingresar el correo registrado y solicitar instrucciones de recuperación.
+1. **Autenticación Completa con API REST y Base de Datos Normalizada (3NF)**:
+   - **Tabla catálogo `auth_providers`**: Contiene los métodos (`1: local`, `2: google`).
+   - **Clave Foránea (`FOREIGN KEY`) en `users`**: Cada usuario tiene un único `auth_provider_id` vinculado.
+   - **Contraseña `NULL` para usuarios de Google**: Las cuentas de Google no guardan contraseñas locales; la autenticación la gestiona Google.
+   - **Exclusividad de método**: Si un usuario se registró con Google, solo puede entrar con Google; si se registró con contraseña, solo entra con su clave.
+   - **Iniciar Sesión**: Autenticación segura mediante usuario o correo y contraseña (hash SHA-256).
+   - **Registrarse**: Creación de nuevas cuentas con validación de campos y duplicados.
+   - **Google Sign-In**: Diálogo nativo de Google Play Services con registro/login automático en MySQL.
+   - **Recuperar Clave**: Solicitud de instrucciones al correo registrado.
    - **Cerrar Sesión**: Limpia el estado de la sesión y retorna a la pantalla de login con transiciones animadas.
 
 2. **Mi Perfil**:
