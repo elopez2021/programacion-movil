@@ -28,8 +28,9 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.example.login.data.DatabaseHelper
+import com.example.login.data.ApiClient
 import com.example.login.data.User
+import kotlinx.coroutines.launch
 
 enum class AuthMode {
     LOGIN,
@@ -39,12 +40,13 @@ enum class AuthMode {
 
 @Composable
 fun LoginScreen(
-    dbHelper: DatabaseHelper,
     currentLanguage: Language,
     onLanguageChange: (Language) -> Unit,
-    onLoginSuccess: (User) -> Unit
+    onLoginSuccess: (User) -> Unit,
+    apiClient: ApiClient = ApiClient
 ) {
     val strings = remember(currentLanguage) { AppStrings.get(currentLanguage) }
+    val coroutineScope = rememberCoroutineScope()
 
     var authMode by remember { mutableStateOf(AuthMode.LOGIN) }
 
@@ -57,6 +59,7 @@ fun LoginScreen(
     var fullName by remember { mutableStateOf("") }
 
     var passwordVisible by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var successMessage by remember { mutableStateOf<String?>(null) }
 
@@ -242,6 +245,7 @@ fun LoginScreen(
                                 Icon(Icons.Default.Badge, contentDescription = "Name")
                             },
                             singleLine = true,
+                            enabled = !isLoading,
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                             keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
                             modifier = Modifier.fillMaxWidth(),
@@ -261,6 +265,7 @@ fun LoginScreen(
                                 Icon(Icons.Default.Email, contentDescription = "Email")
                             },
                             singleLine = true,
+                            enabled = !isLoading,
                             keyboardOptions = KeyboardOptions(
                                 keyboardType = KeyboardType.Email,
                                 imeAction = ImeAction.Next
@@ -283,6 +288,7 @@ fun LoginScreen(
                                 Icon(Icons.Default.Person, contentDescription = "Username")
                             },
                             singleLine = true,
+                            enabled = !isLoading,
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                             keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
                             modifier = Modifier.fillMaxWidth(),
@@ -311,6 +317,7 @@ fun LoginScreen(
                             },
                             visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                             singleLine = true,
+                            enabled = !isLoading,
                             keyboardOptions = KeyboardOptions(
                                 keyboardType = KeyboardType.Password,
                                 imeAction = ImeAction.Next
@@ -334,6 +341,7 @@ fun LoginScreen(
                             },
                             visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                             singleLine = true,
+                            enabled = !isLoading,
                             keyboardOptions = KeyboardOptions(
                                 keyboardType = KeyboardType.Password,
                                 imeAction = ImeAction.Done
@@ -357,6 +365,7 @@ fun LoginScreen(
                                 Icon(Icons.Default.Person, contentDescription = "Username")
                             },
                             singleLine = true,
+                            enabled = !isLoading,
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                             keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
                             modifier = Modifier.fillMaxWidth(),
@@ -385,6 +394,7 @@ fun LoginScreen(
                             },
                             visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                             singleLine = true,
+                            enabled = !isLoading,
                             keyboardOptions = KeyboardOptions(
                                 keyboardType = KeyboardType.Password,
                                 imeAction = ImeAction.Done
@@ -419,7 +429,7 @@ fun LoginScreen(
                     }
 
                     AuthMode.FORGOT_PASSWORD -> {
-                        // Only Email field as requested by the user
+                        // Only Email field
                         OutlinedTextField(
                             value = recoveryEmail,
                             onValueChange = {
@@ -433,6 +443,7 @@ fun LoginScreen(
                                 Icon(Icons.Default.Email, contentDescription = "Email")
                             },
                             singleLine = true,
+                            enabled = !isLoading,
                             keyboardOptions = KeyboardOptions(
                                 keyboardType = KeyboardType.Email,
                                 imeAction = ImeAction.Done
@@ -476,19 +487,23 @@ fun LoginScreen(
                                     return@Button
                                 }
 
-                                val result = dbHelper.registerUser(username, email, password, fullName)
-                                if (result.isSuccess) {
-                                    val user = dbHelper.loginUser(username, password)
-                                    if (user != null) {
-                                        onLoginSuccess(user)
+                                coroutineScope.launch {
+                                    isLoading = true
+                                    val result = apiClient.register(username, email, password, fullName)
+                                    isLoading = false
+                                    if (result.isSuccess) {
+                                        val registeredUser = result.getOrNull()
+                                        if (registeredUser != null) {
+                                            onLoginSuccess(registeredUser)
+                                        } else {
+                                            successMessage = strings.successAccountCreated
+                                            authMode = AuthMode.LOGIN
+                                            password = ""
+                                            confirmPassword = ""
+                                        }
                                     } else {
-                                        successMessage = strings.successAccountCreated
-                                        authMode = AuthMode.LOGIN
-                                        password = ""
-                                        confirmPassword = ""
+                                        errorMessage = result.exceptionOrNull()?.message ?: strings.errRegisterFailed
                                     }
-                                } else {
-                                    errorMessage = result.exceptionOrNull()?.message ?: strings.errRegisterFailed
                                 }
                             }
 
@@ -498,11 +513,18 @@ fun LoginScreen(
                                     return@Button
                                 }
 
-                                val user = dbHelper.loginUser(username, password)
-                                if (user != null) {
-                                    onLoginSuccess(user)
-                                } else {
-                                    errorMessage = strings.errInvalidLogin
+                                coroutineScope.launch {
+                                    isLoading = true
+                                    val result = apiClient.login(username, password)
+                                    isLoading = false
+                                    if (result.isSuccess) {
+                                        val user = result.getOrNull()
+                                        if (user != null) {
+                                            onLoginSuccess(user)
+                                        }
+                                    } else {
+                                        errorMessage = result.exceptionOrNull()?.message ?: strings.errInvalidLogin
+                                    }
                                 }
                             }
 
@@ -512,24 +534,41 @@ fun LoginScreen(
                                     return@Button
                                 }
 
-                                // Simulates sending the password recovery email instructions
-                                successMessage = strings.successEmailSent
+                                coroutineScope.launch {
+                                    isLoading = true
+                                    val result = apiClient.recoverPassword(recoveryEmail)
+                                    isLoading = false
+                                    if (result.isSuccess) {
+                                        successMessage = result.getOrNull() ?: strings.successEmailSent
+                                    } else {
+                                        errorMessage = result.exceptionOrNull()?.message ?: "Error al solicitar recuperación"
+                                    }
+                                }
                             }
                         }
                     },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp),
+                    enabled = !isLoading,
                     shape = RoundedCornerShape(14.dp)
                 ) {
-                    Text(
-                        text = when (authMode) {
-                            AuthMode.REGISTER -> strings.register
-                            AuthMode.FORGOT_PASSWORD -> strings.sendInstructions
-                            AuthMode.LOGIN -> strings.signIn
-                        },
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
-                    )
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            strokeWidth = 2.5.dp
+                        )
+                    } else {
+                        Text(
+                            text = when (authMode) {
+                                AuthMode.REGISTER -> strings.register
+                                AuthMode.FORGOT_PASSWORD -> strings.sendInstructions
+                                AuthMode.LOGIN -> strings.signIn
+                            },
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -544,7 +583,8 @@ fun LoginScreen(
                                 successMessage = null
                                 password = ""
                                 confirmPassword = ""
-                            }
+                            },
+                            enabled = !isLoading
                         ) {
                             Text(
                                 text = strings.dontHaveAccount,
@@ -562,7 +602,8 @@ fun LoginScreen(
                                 successMessage = null
                                 password = ""
                                 confirmPassword = ""
-                            }
+                            },
+                            enabled = !isLoading
                         ) {
                             Text(
                                 text = strings.alreadyHaveAccount,
@@ -579,7 +620,8 @@ fun LoginScreen(
                                 errorMessage = null
                                 successMessage = null
                                 recoveryEmail = ""
-                            }
+                            },
+                            enabled = !isLoading
                         ) {
                             Text(
                                 text = strings.backToLogin,

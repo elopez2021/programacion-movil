@@ -28,8 +28,9 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.login.data.DatabaseHelper
+import com.example.login.data.ApiClient
 import com.example.login.data.User
+import kotlinx.coroutines.launch
 
 enum class HomeTab {
     DASHBOARD,
@@ -40,11 +41,11 @@ enum class HomeTab {
 @Composable
 fun HomeScreen(
     user: User,
-    dbHelper: DatabaseHelper,
     currentLanguage: Language,
     onLanguageChange: (Language) -> Unit,
     onUserUpdated: (User) -> Unit,
-    onSignOut: () -> Unit
+    onSignOut: () -> Unit,
+    apiClient: ApiClient = ApiClient
 ) {
     val strings = remember(currentLanguage) { AppStrings.get(currentLanguage) }
     var currentTab by remember { mutableStateOf(HomeTab.DASHBOARD) }
@@ -133,7 +134,7 @@ fun HomeScreen(
                     ProfileContent(
                         user = user,
                         strings = strings,
-                        dbHelper = dbHelper,
+                        apiClient = apiClient,
                         onUserUpdated = onUserUpdated
                     )
                 }
@@ -225,15 +226,20 @@ private fun DashboardContent(
 private fun ProfileContent(
     user: User,
     strings: AppStrings,
-    dbHelper: DatabaseHelper,
+    apiClient: ApiClient,
     onUserUpdated: (User) -> Unit
 ) {
+    val coroutineScope = rememberCoroutineScope()
+
     var editName by remember(user) { mutableStateOf(user.name) }
     var currentPassword by remember { mutableStateOf("") }
     var newPassword by remember { mutableStateOf("") }
     var confirmNewPassword by remember { mutableStateOf("") }
 
     var passVisible by remember { mutableStateOf(false) }
+
+    var isSavingProfile by remember { mutableStateOf(false) }
+    var isChangingPassword by remember { mutableStateOf(false) }
 
     var profileSuccessMsg by remember { mutableStateOf<String?>(null) }
     var profileErrorMsg by remember { mutableStateOf<String?>(null) }
@@ -382,6 +388,7 @@ private fun ProfileContent(
                     },
                     label = { Text(strings.fullName) },
                     singleLine = true,
+                    enabled = !isSavingProfile,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
                 )
@@ -399,20 +406,36 @@ private fun ProfileContent(
                             return@Button
                         }
 
-                        val result = dbHelper.updateUserName(user.id, editName)
-                        if (result.isSuccess) {
-                            profileSuccessMsg = strings.successProfileUpdated
-                            onUserUpdated(User(id = user.id, username = user.username, email = user.email, name = editName.trim()))
-                        } else {
-                            profileErrorMsg = result.exceptionOrNull()?.localizedMessage ?: "Error"
+                        coroutineScope.launch {
+                            isSavingProfile = true
+                            val result = apiClient.updateProfile(user.id, editName)
+                            isSavingProfile = false
+                            if (result.isSuccess) {
+                                val updatedUser = result.getOrNull()
+                                if (updatedUser != null) {
+                                    profileSuccessMsg = strings.successProfileUpdated
+                                    onUserUpdated(updatedUser)
+                                }
+                            } else {
+                                profileErrorMsg = result.exceptionOrNull()?.message ?: "Error al actualizar perfil"
+                            }
                         }
                     },
+                    enabled = !isSavingProfile,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Icon(imageVector = Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(strings.saveChanges)
+                    if (isSavingProfile) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Icon(imageVector = Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(strings.saveChanges)
+                    }
                 }
             }
         }
@@ -499,6 +522,7 @@ private fun ProfileContent(
                     label = { Text(strings.currentPassword) },
                     visualTransformation = if (passVisible) VisualTransformation.None else PasswordVisualTransformation(),
                     singleLine = true,
+                    enabled = !isChangingPassword,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Next),
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
@@ -525,6 +549,7 @@ private fun ProfileContent(
                     label = { Text(strings.newPassword) },
                     visualTransformation = if (passVisible) VisualTransformation.None else PasswordVisualTransformation(),
                     singleLine = true,
+                    enabled = !isChangingPassword,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Next),
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
@@ -543,6 +568,7 @@ private fun ProfileContent(
                     label = { Text(strings.confirmNewPassword) },
                     visualTransformation = if (passVisible) VisualTransformation.None else PasswordVisualTransformation(),
                     singleLine = true,
+                    enabled = !isChangingPassword,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
                     modifier = Modifier.fillMaxWidth(),
@@ -570,27 +596,40 @@ private fun ProfileContent(
                             return@FilledTonalButton
                         }
 
-                        val result = dbHelper.changePassword(user.id, currentPassword, newPassword)
-                        if (result.isSuccess) {
-                            passSuccessMsg = strings.successPasswordChanged
-                            currentPassword = ""
-                            newPassword = ""
-                            confirmNewPassword = ""
-                        } else {
-                            val err = result.exceptionOrNull()
-                            if (err?.message == "WRONG_OLD_PASSWORD") {
-                                passErrorMsg = strings.errCurrentPasswordWrong
+                        coroutineScope.launch {
+                            isChangingPassword = true
+                            val result = apiClient.changePassword(user.id, currentPassword, newPassword)
+                            isChangingPassword = false
+                            if (result.isSuccess) {
+                                passSuccessMsg = strings.successPasswordChanged
+                                currentPassword = ""
+                                newPassword = ""
+                                confirmNewPassword = ""
                             } else {
-                                passErrorMsg = err?.localizedMessage ?: "Error"
+                                val err = result.exceptionOrNull()
+                                if (err?.message == "WRONG_OLD_PASSWORD") {
+                                    passErrorMsg = strings.errCurrentPasswordWrong
+                                } else {
+                                    passErrorMsg = err?.message ?: "Error al cambiar contraseña"
+                                }
                             }
                         }
                     },
+                    enabled = !isChangingPassword,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Icon(imageVector = Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(strings.changePassword)
+                    if (isChangingPassword) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Icon(imageVector = Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(strings.changePassword)
+                    }
                 }
             }
         }

@@ -1,3 +1,5 @@
+.kotlin
+.kotlin/
 *.iml
 .gradle
 /local.properties
