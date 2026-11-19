@@ -1,23 +1,21 @@
 # 📱 Aplicación Android: Login, Registro, Recuperar Clave y Mi Perfil
 
-Una aplicación móvil Android nativa, simple y elegante, desarrollada con **Kotlin**, **Jetpack Compose** (Material 3) y base de datos nativa **SQLite** (`SQLiteOpenHelper`).
+Una aplicación móvil Android nativa, simple y moderna, desarrollada con **Kotlin**, **Jetpack Compose** (Material 3) y conectada a una API backend en **PHP con MySQL (phpMyAdmin)** (`flashcards_api`).
 
 ---
 
 ## ✨ Funcionalidades Principales
 
-1. **Autenticación Completa con SQLite**:
-   - **Iniciar Sesión**: Autenticación segura mediante usuario y contraseña (con hash SHA-256).
-   - **Registrarse**: Creación de nuevas cuentas (Nombre completo, usuario, contraseña y confirmación) con validación de campos y unicidad de usuario.
-   - **Recuperar Clave**:
-     - Permite ingresar el nombre de usuario y definir una nueva contraseña.
-     - Valida la existencia del usuario en la base de datos SQLite y actualiza su contraseña de forma segura.
+1. **Autenticación Completa con API REST (MySQL / phpMyAdmin)**:
+   - **Iniciar Sesión**: Autenticación segura mediante usuario o correo electrónico y contraseña (con hash SHA-256).
+   - **Registrarse**: Creación de nuevas cuentas (Nombre completo, correo, usuario y contraseña) con validación de campos y duplicados.
+   - **Recuperar Clave**: Pantalla limpia para ingresar el correo registrado y solicitar instrucciones de recuperación.
    - **Cerrar Sesión**: Limpia el estado de la sesión y retorna a la pantalla de login con transiciones animadas.
 
 2. **Mi Perfil**:
-   - Barra de navegación inferior sencilla ("Inicio" y "Mi Perfil").
-   - Muestra avatar, identificador único (ID de SQLite) y nombre de usuario.
-   - **Editar datos personales**: Permite actualizar el nombre completo en la base de datos SQLite con confirmación visual.
+   - Barra de navegación inferior ("Inicio" y "Mi Perfil").
+   - Muestra avatar, nombre completo, correo electrónico y `@usuario`.
+   - **Editar datos personales**: Actualiza el nombre completo en MySQL con confirmación visual.
    - **Cambiar contraseña**: Permite actualizar la clave verificando primero la contraseña actual del usuario.
 
 3. **Soporte Bilingüe (Español / Inglés)**:
@@ -36,7 +34,7 @@ login/
 │   │   │   ├── MainActivity.kt               # Punto de entrada y gestión del estado de sesión
 │   │   │   ├── data/
 │   │   │   │   ├── User.kt                   # Modelo de datos del usuario
-│   │   │   │   └── DatabaseHelper.kt         # SQLiteOpenHelper (login, registro, recuperación y perfil)
+│   │   │   │   └── ApiClient.kt              # Cliente HTTP asíncrono para flashcards_api
 │   │   │   └── ui/
 │   │   │       ├── LoginScreen.kt            # Compose UI: Login, Registro y Recuperar Clave
 │   │   │       ├── HomeScreen.kt             # Compose UI: Dashboard y Mi Perfil
@@ -50,16 +48,12 @@ login/
 
 ---
 
-## 🚀 Cómo Ejecutar
+## 🚀 Conexión con la API Local por Cable USB
 
-### Opción 1: En Android Studio
-1. Abre **Android Studio**.
-2. Selecciona la carpeta del proyecto (`E:\programacion movil\login`).
-3. Presiona el botón verde **Run ▶** con tu emulador o dispositivo físico conectado.
-
-### Opción 2: Compilación por consola
-```bash
-.\gradlew.bat assembleDebug
-```
-El archivo APK se genera en:
-`app\build\outputs\apk\debug\app-debug.apk`
+1. Inicia **Apache** y **MySQL** en tu panel de XAMPP.
+2. Conecta tu teléfono por USB con la **Depuración USB** activada.
+3. Ejecuta en la terminal de tu PC:
+   ```bash
+   adb reverse tcp:80 tcp:80
+   ```
+4. Presiona **Run ▶** en Android Studio.
